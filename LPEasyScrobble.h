@@ -21,12 +21,19 @@
 @property (strong, nonatomic) NSString *APISecret;
 
 @property BOOL isInDebug;
+@property (strong, nonatomic) NSString *lastScrobbling;
+@property (strong, nonatomic) NSString *lastNowPlaying;
 
 - (void) debugLog: (NSString*) stringToLog;
 
 - (BOOL) setUsername: (NSString*) userNameArg andPassword: (NSString *) passwordArg;
 
 - (BOOL) scrobbleTrack:(MPMediaItem *) track ;
+- (BOOL) scrobbleTrack:(NSString*)artist song:(NSString*)song album:(NSString*)album ;
+
+
+- (BOOL) nowPlaying:(MPMediaItem *) track ;
+- (BOOL) nowPlaying:(NSString*)artist song:(NSString*)song;
 
 - (BOOL) loveTrack:(MPMediaItem *) track ;
 

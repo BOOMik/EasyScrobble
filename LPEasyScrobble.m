@@ -22,11 +22,11 @@
 - (BOOL) setUsername: (NSString*) userNameArg andPassword: (NSString *) passwordArg {
     //Get the information required to log into Last.FM
 
+	isInDebug=TRUE;
     //Dev API Key and Secret
     //Add yours here
-    [self setAPIKey:@""];
-    [self setAPISecret:@""];
-    
+    [self setAPIKey:@"13f7b4abf01d70fa773a797a2b2ecab1"];
+    [self setAPISecret:@"b77f0b7a41c5d59324bce1c23296f2f3"];
     //Username and Password
     [self setUsername:userNameArg];
     [self setPassword:passwordArg];
@@ -41,15 +41,120 @@
     return [self startSession];
 }
 
+- (BOOL) nowPlaying:(MPMediaItem *)track {
+	//Scrobbles a track
+	
+	[self debugLog:@"Entered scrobbleTrack"];
+	
+	//Get the Artist Name
+	NSString *artist = [track valueForKey:MPMediaItemPropertyAlbumArtist];
+	
+	//Get the Song Name
+	NSString *song = [track valueForKey:MPMediaItemPropertyTitle];
+	
+	
+	return [self nowPlaying:artist song:song];
+	
+}
+
+
+- (BOOL) nowPlaying:(NSString*)artist song:(NSString*)song {
+	//now playing a track
+	
+	NSString *nowPlaying = [NSString stringWithFormat:@"%@ - %@", artist, song];
+	
+	if (self.lastNowPlaying == nowPlaying) {
+		[self debugLog:@"Entered NowPlaying sending alredy"];
+		return FALSE;
+	}
+	
+	[self debugLog:@"Entered scrobbleTrack"];
+
+	//Build auth.getMobileSession SIG
+	NSMutableString *api_sig = [NSMutableString string];
+	[api_sig appendString:@"api_key"];
+	[api_sig appendString:self.APIKey];
+	[api_sig appendString:@"artist"];
+	[api_sig appendString:artist];
+	[api_sig appendString:@"methodtrack.updateNowPlaying"];
+	[api_sig appendString:@"sk"];
+	[api_sig appendString:self.sessionKey];
+	[api_sig appendString:@"track"];
+	[api_sig appendString:song];
+	[api_sig appendString:self.APISecret];
+	
+	[self debugLog:@"API Sig (Raw):"];
+	[self debugLog:api_sig];
+	
+	NSString *api_sig_hashed = [self MD5StringOfString:api_sig];
+	
+	[self debugLog:@"API Sig (Hashed):"];
+	[self debugLog:api_sig_hashed];
+	
+	//Build auth.getMobileSession SIG
+	NSMutableString *api_request = [NSMutableString string];
+	[api_request appendString:@"api_key="];
+	[api_request appendString:self.APIKey];
+	[api_request appendString:@"&artist="];
+	[api_request appendString:[self scrubString:artist]];
+	[api_request appendString:@"&method=track.updateNowPlaying"];
+	[api_request appendString:@"&sk="];
+	[api_request appendString:self.sessionKey];
+	[api_request appendString:@"&track="];
+	[api_request appendString:[self scrubString:song]];
+	[api_request appendString:@"&api_sig="];
+	[api_request appendString:api_sig_hashed];
+	
+	[self debugLog:@"API Request:"];
+	[self debugLog:api_request];
+	
+	
+	//Set the URL
+	NSURL *apiURL = [NSURL URLWithString:@"https://ws.audioscrobbler.com/2.0/"];
+	
+	//Create a URL request for the URL. We want it to be a POST with the conent of the request string and in the right
+	//content type
+	NSMutableURLRequest *request = [[NSMutableURLRequest alloc] initWithURL: apiURL];
+	[request setHTTPMethod: @"POST"];
+	[request setHTTPBody: [NSData dataWithBytes:[api_request UTF8String] length:[api_request length]]];
+	[request setValue:@"application/x-www-form-urlencoded" forHTTPHeaderField:@"content-type"];
+	
+	//Get the response from the server
+	NSData *response = [NSURLConnection sendSynchronousRequest:request returningResponse:nil error:nil];
+	
+	//Convert the response to a string
+	NSString *responseString = [[NSString alloc] initWithData:response encoding:NSASCIIStringEncoding];
+	
+	[self debugLog:responseString];
+	
+	//We want to see if this Love call failed or succeeded
+	NSRange startRange = [responseString rangeOfString:@"<lfm status=\"ok\">"];
+	
+	if (startRange.length > 0) {
+		
+		[self debugLog:@"Call suceeded"];
+		self.lastNowPlaying = nowPlaying;
+		return TRUE;
+		
+	} else {
+		
+		[self debugLog:@"Call failed"];
+		
+		return FALSE;
+		
+	}
+}
+
+
 - (BOOL) loveTrack:(MPMediaItem *) track {
     //Loves a track
-    
-    
-    [self debugLog:@"Entered scrobbleTrack"];
-    
+	
+	
+    [self debugLog:@"Entered loveTrack"];
+	
     //Get the Artist Name
     NSString *artist = [track valueForKey:MPMediaItemPropertyAlbumArtist];
-    
+	
     //Get the Song Name
     NSString *song = [track valueForKey:MPMediaItemPropertyTitle];
     
@@ -122,8 +227,7 @@
     } else {
         
         [self debugLog:@"Call failed"];
-        
-        
+
         return FALSE;
         
     }
@@ -144,111 +248,122 @@
     
 }
 
+- (BOOL) scrobbleTrack:(NSString*)artist song:(NSString*)song album:(NSString*)album {
+	
+	NSString *scrobbling = [NSString stringWithFormat:@"%@ - %@ - %@", artist, song, album];
+	
+	if (self.lastScrobbling == scrobbling) {
+		[self debugLog:@"Entered NowPlaying sending alredy"];
+		return FALSE;
+	}
+	
+	
+	//Get the UNIX time stamp for the scrobble request
+	NSDate *date = [NSDate date];
+	NSTimeInterval ti = [date timeIntervalSince1970];
+	float UNIXTime = (float)ti;
+	int UNIXTimeStamp = (int)UNIXTime;
+	NSString *dateString = [NSString stringWithFormat:@"%i", UNIXTimeStamp];
+	
+	//Build auth.getMobileSession SIG
+	NSMutableString *api_sig = [NSMutableString string];
+	[api_sig appendString:@"album"];
+	[api_sig appendString:album];
+	[api_sig appendString:@"api_key"];
+	[api_sig appendString:self.APIKey];
+	[api_sig appendString:@"artist"];
+	[api_sig appendString:artist];
+	[api_sig appendString:@"methodtrack.scrobble"];
+	[api_sig appendString:@"sk"];
+	[api_sig appendString:self.sessionKey];
+	[api_sig appendString:@"timestamp"];
+	[api_sig appendString:dateString];
+	[api_sig appendString:@"track"];
+	[api_sig appendString:song];
+	[api_sig appendString:self.APISecret];
+	
+	[self debugLog:@"API Sig (Raw):"];
+	[self debugLog:api_sig];
+	
+	NSString *api_sig_hashed = [self MD5StringOfString:api_sig];
+	
+	[self debugLog:@"API Sig (Hashed):"];
+	[self debugLog:api_sig_hashed];
+	
+	//Build auth.getMobileSession SIG
+	NSMutableString *api_request = [NSMutableString string];
+	[api_request appendString:@"album="];
+	[api_request appendString:[self scrubString:album]];
+	[api_request appendString:@"&api_key="];
+	[api_request appendString:self.APIKey];
+	[api_request appendString:@"&artist="];
+	[api_request appendString: [self scrubString:artist]];
+	[api_request appendString:@"&method=track.scrobble"];
+	[api_request appendString:@"&sk="];
+	[api_request appendString:self.sessionKey];
+	[api_request appendString:@"&timestamp="];
+	[api_request appendString:dateString];
+	[api_request appendString:@"&track="];
+	[api_request appendString: [self scrubString:song]];
+	[api_request appendString:@"&api_sig="];
+	[api_request appendString:api_sig_hashed];
+	
+	[self debugLog:@"API Request:"];
+	[self debugLog:api_request];
+	
+	//Set the URL
+	NSURL *apiURL = [NSURL URLWithString:@"https://ws.audioscrobbler.com/2.0/"];
+	
+	//Create a URL request for the URL. We want it to be a POST with the conent of the request string and in the right
+	//content type
+	NSMutableURLRequest *request = [[NSMutableURLRequest alloc] initWithURL: apiURL];
+	[request setHTTPMethod: @"POST"];
+	[request setHTTPBody: [NSData dataWithBytes:[api_request UTF8String] length:[api_request length]]];
+	[request setValue:@"application/x-www-form-urlencoded" forHTTPHeaderField:@"content-type"];
+	
+	//Get the response from the server
+	NSData *response = [NSURLConnection sendSynchronousRequest:request returningResponse:nil error:nil];
+	
+	//Convert the response to a string
+	NSString *responseString = [[NSString alloc] initWithData:response encoding:NSASCIIStringEncoding];
+	
+	[self debugLog:responseString];
+	
+	//We want to see if this Scrobble call failed or succeeded
+	NSRange startRange = [responseString rangeOfString:@"<lfm status=\"ok\">"];
+	
+	if (startRange.length > 0) {
+		
+		[self debugLog:@"Call suceeded"];
+		self.lastScrobbling = scrobbling;
+		return TRUE;
+		
+	} else {
+		
+		[self debugLog:@"Call failed"];
+		
+		
+		return FALSE;
+		
+	}
+}
 
 - (BOOL) scrobbleTrack:(MPMediaItem *)track {
     //Scrobbles a track
-    
+	
     [self debugLog:@"Entered scrobbleTrack"];
-    
+	
     //Get the Artist Name
     NSString *artist = [track valueForKey:MPMediaItemPropertyAlbumArtist];
-    
+	
     //Get the Song Name
     NSString *song = [track valueForKey:MPMediaItemPropertyTitle];
     
     //Get the Album Name
     NSString *album = [track valueForKey:MPMediaItemPropertyAlbumTitle];
     
-    //Get the UNIX time stamp for the scrobble request
-    NSDate *date = [NSDate date];
-    NSTimeInterval ti = [date timeIntervalSince1970];
-    float UNIXTime = (float)ti;
-    int UNIXTimeStamp = (int)UNIXTime;
-    NSString *dateString = [NSString stringWithFormat:@"%i", UNIXTimeStamp];
-    
-    //Build auth.getMobileSession SIG
-    NSMutableString *api_sig = [NSMutableString string];
-    [api_sig appendString:@"album"];
-    [api_sig appendString:[track valueForKey:MPMediaItemPropertyAlbumTitle]];
-    [api_sig appendString:@"api_key"];
-    [api_sig appendString:self.APIKey];
-    [api_sig appendString:@"artist"];
-    [api_sig appendString:[track valueForKey:MPMediaItemPropertyAlbumArtist]];
-    [api_sig appendString:@"methodtrack.scrobble"];
-    [api_sig appendString:@"sk"];
-    [api_sig appendString:self.sessionKey];
-    [api_sig appendString:@"timestamp"];
-    [api_sig appendString:dateString];
-    [api_sig appendString:@"track"];
-    [api_sig appendString:[track valueForKey:MPMediaItemPropertyTitle]];
-    [api_sig appendString:self.APISecret];
-    
-    [self debugLog:@"API Sig (Raw):"];
-    [self debugLog:api_sig];
-    
-    NSString *api_sig_hashed = [self MD5StringOfString:api_sig];
-    
-    [self debugLog:@"API Sig (Hashed):"];
-    [self debugLog:api_sig_hashed];
-    
-    //Build auth.getMobileSession SIG
-    NSMutableString *api_request = [NSMutableString string];
-    [api_request appendString:@"album="];
-    [api_request appendString:[self scrubString:album]];
-    [api_request appendString:@"&api_key="];
-    [api_request appendString:self.APIKey];
-    [api_request appendString:@"&artist="];
-    [api_request appendString: [self scrubString:artist]];
-    [api_request appendString:@"&method=track.scrobble"];
-    [api_request appendString:@"&sk="];
-    [api_request appendString:self.sessionKey];
-    [api_request appendString:@"&timestamp="];
-    [api_request appendString:dateString];
-    [api_request appendString:@"&track="];
-    [api_request appendString: [self scrubString:song]];
-    [api_request appendString:@"&api_sig="];
-    [api_request appendString:api_sig_hashed];
-    
-    [self debugLog:@"API Request:"];
-    [self debugLog:api_request];
-    
-    //Set the URL
-    NSURL *apiURL = [NSURL URLWithString:@"https://ws.audioscrobbler.com/2.0/"];
-    
-    //Create a URL request for the URL. We want it to be a POST with the conent of the request string and in the right
-    //content type
-    NSMutableURLRequest *request = [[NSMutableURLRequest alloc] initWithURL: apiURL];
-    [request setHTTPMethod: @"POST"];
-    [request setHTTPBody: [NSData dataWithBytes:[api_request UTF8String] length:[api_request length]]];
-    [request setValue:@"application/x-www-form-urlencoded" forHTTPHeaderField:@"content-type"];
-    
-    //Get the response from the server
-    NSData *response = [NSURLConnection sendSynchronousRequest:request returningResponse:nil error:nil];
-    
-    //Convert the response to a string
-    NSString *responseString = [[NSString alloc] initWithData:response encoding:NSASCIIStringEncoding];
-    
-    [self debugLog:responseString];
-    
-    //We want to see if this Scrobble call failed or succeeded
-    NSRange startRange = [responseString rangeOfString:@"<lfm status=\"ok\">"];
-
-    if (startRange.length > 0) {
-        
-        [self debugLog:@"Call suceeded"];
-        
-        return TRUE;
-        
-    } else {
-        
-        [self debugLog:@"Call failed"];
-
-        
-        return FALSE;
-        
-    }
-    
-    
+	
+	return [self scrobbleTrack:artist song:song album:album];
     
 }
 
