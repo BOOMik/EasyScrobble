@@ -22,7 +22,6 @@
 - (BOOL) setUsername: (NSString*) userNameArg andPassword: (NSString *) passwordArg {
     //Get the information required to log into Last.FM
 
-	isInDebug=TRUE;
     //Dev API Key and Secret
     //Add yours here
     [self setAPIKey:@"13f7b4abf01d70fa773a797a2b2ecab1"];
@@ -62,8 +61,12 @@
 	//now playing a track
 	
 	NSString *nowPlaying = [NSString stringWithFormat:@"%@ - %@", artist, song];
+	NSLog(@"lastNowPlaying=%@",self.lastNowPlaying);
+	NSLog(@"nowPlaying=%@",nowPlaying);
 	
-	if (self.lastNowPlaying == nowPlaying) {
+	
+	if ([self.lastNowPlaying isEqualToString:nowPlaying]) {
+	//if (self.lastNowPlaying == nowPlaying) {
 		[self debugLog:@"Entered NowPlaying sending alredy"];
 		return FALSE;
 	}
@@ -251,8 +254,10 @@
 - (BOOL) scrobbleTrack:(NSString*)artist song:(NSString*)song album:(NSString*)album {
 	
 	NSString *scrobbling = [NSString stringWithFormat:@"%@ - %@ - %@", artist, song, album];
+	NSLog(@"lastScrobbling=%@",self.lastScrobbling);
+	NSLog(@"scrobbling=%@",scrobbling);
 	
-	if (self.lastScrobbling == scrobbling) {
+	if ([self.lastScrobbling isEqualToString:scrobbling]) {
 		[self debugLog:@"Entered NowPlaying sending alredy"];
 		return FALSE;
 	}
@@ -477,8 +482,7 @@
 - (void) debugLog: (NSString*) stringToLog {
     
     if ( self.isInDebug == TRUE) {
-        
-        NSLog(@"%@", stringToLog);
+		NSLog(@"%@", stringToLog);
     }
     
 }
